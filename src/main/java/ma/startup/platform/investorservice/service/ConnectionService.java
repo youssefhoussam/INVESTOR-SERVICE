@@ -45,9 +45,10 @@ public class ConnectionService {
         }
 
         // Get startup profile
+        // Get startup profile
         StartupDTO startup;
         try {
-            startup = startupServiceClient.getStartup(user.getId(), authHeader);
+            startup = startupServiceClient.getStartupByUserId(user.getId(), authHeader);
         } catch (Exception e) {
             throw new RuntimeException("Profil startup non trouvé");
         }
@@ -123,9 +124,10 @@ public class ConnectionService {
         }
 
         // Get startup profile
+        // Get startup profile
         StartupDTO startup;
         try {
-            startup = startupServiceClient.getStartup(user.getId(), authHeader);
+            startup = startupServiceClient.getStartupByUserId(user.getId(), authHeader);
         } catch (Exception e) {
             throw new RuntimeException("Profil startup non trouvé");
         }
@@ -243,12 +245,13 @@ public class ConnectionService {
             // Get startup profile
             StartupDTO startup;
             try {
-                startup = startupServiceClient.getStartup(user.getId(), authHeader);
+                startup = startupServiceClient.getStartupByUserId(user.getId(), authHeader);
             } catch (Exception e) {
                 throw new RuntimeException("Profil startup non trouvé");
             }
 
             connections = connectionRequestRepository.findActiveConnectionsForStartup(startup.getId());
+
 
         } else if ("INVESTOR".equals(user.getRole())) {
             // Get investor profile

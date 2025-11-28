@@ -6,10 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ma.startup.platform.investorservice.client.AuthServiceClient;
 import ma.startup.platform.investorservice.client.StartupServiceClient;
-import ma.startup.platform.investorservice.dto.InvestorResponse;
-import ma.startup.platform.investorservice.dto.MatchingResponse;
-import ma.startup.platform.investorservice.dto.StartupDTO;
-import ma.startup.platform.investorservice.dto.UserDTO;
+import ma.startup.platform.investorservice.dto.*;
 import ma.startup.platform.investorservice.model.Investor;
 import ma.startup.platform.investorservice.model.MatchingResult;
 import ma.startup.platform.investorservice.repository.InvestorRepository;
@@ -45,8 +42,9 @@ public class MatchingService {
         // 2. Get startup profile
         StartupDTO startup;
         try {
-            startup = startupServiceClient.getStartup(user.getId(), authHeader);
+            startup = startupServiceClient.getStartupByUserId(user.getId(), authHeader);
         } catch (Exception e) {
+            log.error("Error fetching startup for user {}: {}", user.getId(), e.getMessage());
             throw new RuntimeException("Profil startup non trouvé pour cet utilisateur");
         }
 
@@ -181,7 +179,7 @@ public class MatchingService {
      */
     public MatchingResponse getMatchingScore(UUID investorId, String authHeader) {
         UserDTO user = authServiceClient.getCurrentUser(authHeader);
-        StartupDTO startup = startupServiceClient.getStartup(user.getId(), authHeader);
+        StartupDTO startup = startupServiceClient.getStartupByUserId(user.getId(), authHeader);
 
         Investor investor = investorRepository.findById(investorId)
                 .orElseThrow(() -> new RuntimeException("Investisseur non trouvé"));
@@ -204,4 +202,108 @@ public class MatchingService {
         log.info("Force recalculating matches");
         getMatchingInvestorsForMe(authHeader);
     }
-}
+    /**
+     * Get matching startups for current investor (investor's perspective)
+     */
+    @Transactional
+    public List<StartupMatchResponse> getMatchingStartupsForMe(String authHeader) {
+        log.info("Calculating matching startups for current investor");
+
+        // 1. Get current user
+        UserDTO user = authServiceClient.getCurrentUser(authHeader);
+
+        // Verify user is an investor
+        if (!"INVESTOR".equals(user.getRole())) {
+            throw new RuntimeException("Seuls les investisseurs peuvent consulter les start-ups matchées");
+        }
+
+        // 2. Get investor profile
+        Investor investor = investorRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new RuntimeException("Profil investisseur non trouvé"));
+
+        // 3. Get all startups
+        List<StartupDTO> allStartups;
+        try {
+            allStartups = startupServiceClient.getAllStartups(authHeader);
+        } catch (Exception e) {
+            log.error("Error fetching startups: {}", e.getMessage());
+            return Collections.emptyList();
+        }
+
+        if (allStartups.isEmpty()) {
+            log.warn("No startups found in database");
+            return Collections.emptyList();
+        }
+
+        // 4. Calculate matching score for each startup
+        List<StartupMatchResponse> matches = new ArrayList<>();
+
+        for (StartupDTO startup : allStartups) {
+            int score = calculateMatchingScore(startup, investor);
+
+            // Only return startups with score >= 50 (decent match)
+            if (score >= 50) {
+                // Create or update matching result
+                MatchingResult matchingResult = matchingResultRepository
+                        .findByStartupIdAndInvestorId(startup.getId(), investor.getId())
+                        .orElse(new MatchingResult());
+
+                matchingResult.setStartupId(startup.getId());
+                matchingResult.setInvestorId(investor.getId());
+                matchingResult.setScore(score);
+                matchingResult.setCriteria(buildCriteriaJson(startup, investor, score));
+
+                matchingResultRepository.save(matchingResult);
+
+                // Build startup info
+                StartupMatchResponse.StartupInfo startupInfo = new StartupMatchResponse.StartupInfo(
+                        startup.getId(),
+                        startup.getNom(),
+                        startup.getSecteur(),
+                        startup.getDescription(),
+                        startup.getLocalisation(),
+                        startup.getProfileCompletion(),
+                        startup.getLogo(),
+                        startup.getSiteWeb()
+                );
+
+                // Build criteria
+                StartupMatchResponse.MatchingCriteria criteria = buildMatchingCriteria(startup, investor, score);
+
+                // Build response
+                StartupMatchResponse response = new StartupMatchResponse(
+                        matchingResult.getId(),
+                        startupInfo,
+                        score,
+                        criteria,
+                        matchingResult.getIsViewed()
+                );
+
+                matches.add(response);
+            }
+        }
+
+        // 5. Sort by score (highest first) and return top 20
+        return matches.stream()
+                .sorted((a, b) -> b.getScore().compareTo(a.getScore()))
+                .limit(20)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Helper method to build matching criteria
+     */
+    private StartupMatchResponse.MatchingCriteria buildMatchingCriteria(StartupDTO startup, Investor investor, int score) {
+        boolean secteurMatch = startup.getSecteur() != null &&
+                investor.getSecteursInterets() != null &&
+                investor.getSecteursInterets().toLowerCase().contains(startup.getSecteur().toLowerCase());
+
+        boolean localisationMatch = startup.getLocalisation() != null &&
+                investor.getLocalisation() != null &&
+                startup.getLocalisation().equalsIgnoreCase(investor.getLocalisation());
+
+        String details = String.format("Score: %d/100 - Secteur: %s, Localisation: %s",
+                score, secteurMatch ? "✓" : "✗", localisationMatch ? "✓" : "✗");
+
+        return new StartupMatchResponse.MatchingCriteria(secteurMatch, true, localisationMatch, details);
+    }}

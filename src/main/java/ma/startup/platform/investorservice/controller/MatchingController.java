@@ -4,6 +4,7 @@ package ma.startup.platform.investorservice.controller;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ma.startup.platform.investorservice.dto.MatchingResponse;
+import ma.startup.platform.investorservice.dto.StartupMatchResponse;
 import ma.startup.platform.investorservice.service.MatchingService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -63,6 +64,20 @@ public class MatchingController {
             return ResponseEntity.ok("Matching recalculé avec succès");
         } catch (Exception e) {
             log.error("Error recalculating matches: {}", e.getMessage());
+            return ResponseEntity.badRequest().body("Erreur: " + e.getMessage());
+        }
+    }
+    /**
+     * GET /api/matching/startups - Get matching startups (investor view)
+     */
+    @GetMapping("/startups")
+    public ResponseEntity<?> getMatchingStartupsForMe(@RequestHeader("Authorization") String authHeader) {
+        try {
+            log.info("GET /api/matching/startups - Calculating matching startups for investor");
+            List<StartupMatchResponse> matches = matchingService.getMatchingStartupsForMe(authHeader);
+            return ResponseEntity.ok(matches);
+        } catch (Exception e) {
+            log.error("Error calculating startup matches: {}", e.getMessage());
             return ResponseEntity.badRequest().body("Erreur: " + e.getMessage());
         }
     }
