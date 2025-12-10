@@ -6,8 +6,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ma.startup.platform.investorservice.dto.CreateInvestorRequest;
 import ma.startup.platform.investorservice.dto.InvestorResponse;
+import ma.startup.platform.investorservice.dto.StartupDetailResponse;
 import ma.startup.platform.investorservice.dto.UpdateInvestorRequest;
 import ma.startup.platform.investorservice.service.InvestorService;
+import ma.startup.platform.investorservice.service.StartupDetailService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -25,6 +27,7 @@ import java.util.UUID;
 public class InvestorController {
 
     private final InvestorService investorService;
+    private final StartupDetailService startupDetailService;
 
     /**
      * POST /api/investors - Create investor profile
@@ -119,6 +122,19 @@ public class InvestorController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error searching investors: {}", e.getMessage());
+            return ResponseEntity.badRequest().body("Erreur: " + e.getMessage());
+        }
+    }
+    @GetMapping("/startups/{startupId}/details")
+    public ResponseEntity<?> getStartupDetails(
+            @PathVariable UUID startupId,
+            @RequestHeader("Authorization") String authHeader) {
+        try {
+            log.info("GET /api/investors/startups/{}/details", startupId);
+            StartupDetailResponse response = startupDetailService.getStartupDetails(startupId, authHeader);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error fetching startup details: {}", e.getMessage());
             return ResponseEntity.badRequest().body("Erreur: " + e.getMessage());
         }
     }

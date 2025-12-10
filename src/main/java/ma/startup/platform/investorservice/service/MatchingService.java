@@ -42,7 +42,7 @@ public class MatchingService {
         // 2. Get startup profile
         StartupDTO startup;
         try {
-            startup = startupServiceClient.getStartupByUserId(user.getId(), authHeader);
+            startup = startupServiceClient.getStartupById(user.getId(), authHeader);
         } catch (Exception e) {
             log.error("Error fetching startup for user {}: {}", user.getId(), e.getMessage());
             throw new RuntimeException("Profil startup non trouvé pour cet utilisateur");
