@@ -40,11 +40,13 @@ public class MatchingService {
         UserDTO user = authServiceClient.getCurrentUser(authHeader);
 
         // 2. Get startup profile
+        // 2. Get startup profile
         StartupDTO startup;
         try {
-            startup = startupServiceClient.getStartupById(user.getId(), authHeader);
+            // Use getMyStartup instead of getStartupById with userId
+            startup = startupServiceClient.getMyStartup(authHeader);
         } catch (Exception e) {
-            log.error("Error fetching startup for user {}: {}", user.getId(), e.getMessage());
+            log.error("Error fetching startup: {}", e.getMessage());
             throw new RuntimeException("Profil startup non trouvé pour cet utilisateur");
         }
 
@@ -179,7 +181,15 @@ public class MatchingService {
      */
     public MatchingResponse getMatchingScore(UUID investorId, String authHeader) {
         UserDTO user = authServiceClient.getCurrentUser(authHeader);
-        StartupDTO startup = startupServiceClient.getStartupByUserId(user.getId(), authHeader);
+
+        // FIXED: Use getMyStartup
+        StartupDTO startup;
+        try {
+            startup = startupServiceClient.getMyStartup(authHeader);
+        } catch (Exception e) {
+            log.error("Error fetching startup: {}", e.getMessage());
+            throw new RuntimeException("Profil startup non trouvé");
+        }
 
         Investor investor = investorRepository.findById(investorId)
                 .orElseThrow(() -> new RuntimeException("Investisseur non trouvé"));
